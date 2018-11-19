@@ -5,7 +5,7 @@ from pdb import set_trace
 from demos import cmd
 import pickle
 import matplotlib.pyplot as plt
-
+from mar import MAR
 from sk import rdivDemo
 
 import random
