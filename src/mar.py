@@ -142,6 +142,7 @@ class MAR(object):
             self.body["count"] = [c[ind] for c in content[1:]]
         except:
             self.body["count"]=[0]*(len(content) - 1)
+        set_trace()
         return
     
     def lda(self):
@@ -150,7 +151,7 @@ class MAR(object):
 
 
         content = [self.body["Document Title"][index] + " " + self.body["Abstract"][index] for index in
-                   xrange(len(self.body["Document Title"]))]
+                   range(len(self.body["Document Title"]))]
         tfer = TfidfVectorizer(lowercase=True, stop_words="english", norm=None, use_idf=False,
                                vocabulary=self.voc, decode_error="ignore")
         self.csr_mat = tfer.fit_transform(content)
@@ -176,7 +177,7 @@ class MAR(object):
             return x / xx if xx else x
 
         content = [self.body["Document Title"][index] + " " + self.body["Abstract"][index] for index in
-                   xrange(len(self.body["Document Title"]))]
+                   range(len(self.body["Document Title"]))]
 
         content1 = convert_sentences(content)
         model = Doc2Vec(size=300, window=10, min_count=5, workers=multiprocessing.cpu_count(),alpha=0.025, min_alpha=0.025)
@@ -199,20 +200,20 @@ class MAR(object):
         with open("../workspace/data/" + str(self.name) + "_error.csv", "wb") as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=',')
             csvwriter.writerow(fields)
-            for ind in xrange(len(self.body['label'])):
+            for ind in range(len(self.body['label'])):
                 csvwriter.writerow([self.body[field][ind] for field in fields])
         return
 
     def export_feature(self):
         with open("../workspace/coded/feature_" + str(self.name) + ".csv", "wb") as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=',')
-            for i in xrange(self.csr_mat.shape[0]):
+            for i in range(self.csr_mat.shape[0]):
                 for j in range(self.csr_mat.indptr[i],self.csr_mat.indptr[i+1]):
                     csvwriter.writerow([i+1,self.csr_mat.indices[j]+1,self.csr_mat.data[j]])
         return
 
     def get_numbers(self):
-        total = len(self.body["code"]) - self.last_pos - self.last_neg
+        total = len(self.body["code"]) - self.last_pos - self.last_neg # last_pos is the num of current detected pos, last_neg is the num of currect detected neg, so total is the rest undiscovered docs
         pos = Counter(self.body["code"])["yes"] - self.last_pos
         neg = Counter(self.body["code"])["no"] - self.last_neg
         try:
@@ -244,7 +245,7 @@ class MAR(object):
     def preprocess(self):
         ### Combine title and abstract for training ###########
         content = [self.body["Document Title"][index] + " " + self.body["Abstract"][index] for index in
-                   xrange(len(self.body["Document Title"]))]
+                   range(len(self.body["Document Title"]))]
         #######################################################
 
         ### Feature selection by tfidf in order to keep vocabulary ###
@@ -499,7 +500,7 @@ class MAR(object):
 
         ### Combine title and abstract for training ###########
         content = [self.body["Document Title"][index] + " " + self.body["Abstract"][index] for index in
-                   xrange(len(self.body["Document Title"]))]
+                   range(len(self.body["Document Title"]))]
         #######################################################
 
         ### Feature selection by tfidf in order to keep vocabulary ###
@@ -518,11 +519,18 @@ class MAR(object):
                 continue
             df = sum([1 for wc in tf[:,id] if wc>0])
             idf = np.log((len(content)-df+0.5)/(df+0.5))
-            for i in xrange(len(content)):
+            for i in range(len(content)):
                 score[word].append(idf*tf[i,id]/(tf[i,id]+k1*((1-b)+b*np.sum(tf[0],axis=1)[0,0]/d_avg)))
-        self.bm = np.sum(score.values(),axis=0)
+        # self.bm = np.sum(score.values(),axis=0) # this line has bug
+        self.bm = np.array(list(np.sum(score.values(),axis=0))[0] )# this line has bug
+        set_trace()
 
     def BM25_get(self):
+    # self.pool is a list of candidate indexes
+    # self.bm contains the candidate value. The larger, the higher priority to be selected
+    # argsort return a 1-dim array of indexes. The first item contains the index of the smallest value of self.bm. The last item contains the index of the largest value of self.bm
+    # argsort()[::-1] will inverse the order.
+    # plus [:self.step] is to select the most #step similar documents to my query
         return self.pool[np.argsort(self.bm[self.pool])[::-1][:self.step]]
 
 
@@ -802,10 +810,11 @@ class MAR(object):
             else:
                 new = 'no'
         if new == self.body["code"][id]:
+            # if the human still confirm his decision, then trust him.
             self.body['fixed'][id]=1
         self.body["code"][id] = new
         self.body["time"][id] = time.time()
-        self.body["count"][id] = self.body["count"][id] + 1
+        self.body["count"][id] = self.body["count"][id] + 1 # #times of labeling
 
     ## Get suspecious codes
     def susp(self,clf):
@@ -861,7 +870,7 @@ class MAR(object):
             order=np.argsort(est)[::-1]
             xx=[self.record["x"][-1]]
             yy=[self.record["pos"][-1]]
-            for x in xrange(int(len(order)/self.step)):
+            for x in range(int(len(order)/self.step)):
                 delta = sum(est[order[x*self.step:(x+1)*self.step]])
                 if delta>=0.1:
                     yy.append(yy[-1]+delta)
@@ -894,7 +903,7 @@ class MAR(object):
 
     ## Get missed relevant docs ##
     def get_rest(self):
-        rest=[x for x in xrange(len(self.body['label'])) if self.body['label'][x]=='yes' and self.body['code'][x]!='yes']
+        rest=[x for x in range(len(self.body['label'])) if self.body['label'][x]=='yes' and self.body['code'][x]!='yes']
         rests={}
         # fields = ["Document Title", "Abstract", "Year", "PDF Link"]
         fields = ["Document Title"]
@@ -910,7 +919,7 @@ class MAR(object):
         order = np.argsort(est)[::-1]
         xx = [self.record["x"][-1]]
         yy = [self.record["pos"][-1]]
-        for x in xrange(int(len(order) / self.step)):
+        for x in range(int(len(order) / self.step)):
             delta = sum(est[order[x * self.step:(x + 1) * self.step]])
             if delta >= 0.1:
                 yy.append(yy[-1] + delta)
@@ -924,7 +933,7 @@ class MAR(object):
         order = np.argsort(est)[::-1]
         xx2 = [self.record["x"][-1]]
         yy2 = [self.record["pos"][-1]]
-        for x in xrange(int(len(order) / self.step)):
+        for x in range(int(len(order) / self.step)):
             delta = sum(est[order[x * self.step:(x + 1) * self.step]])
             if delta >= 0.1:
                 yy2.append(yy2[-1] + delta)
